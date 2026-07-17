@@ -6,7 +6,7 @@ load_dotenv() # Carga las variables del archivo .env
 import MetaTrader5 as mt5
 
 # Configuración General
-SYMBOL = "XAUUSD" # IMPORTANTE: Ajustar al nombre exacto de tu broker si es distinto (ej. "XAUUSD.a" o "Gold")
+SYMBOL = "XAUUSDm" # IMPORTANTE: Ajustar al nombre exacto de tu broker si es distinto (ej. "XAUUSD.a" o "Gold")
 LOT_SIZE = 0.02
 MAGIC_NUMBER = int(os.getenv("MAGIC_NUMBER", 123456)) # Identificador único para las operaciones del bot
 DEVIATION = 20 # Desviación permitida (slippage) en puntos
