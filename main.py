@@ -76,9 +76,9 @@ def main():
                     
                     if not already_open:
                         print(f"\n[!] SEÑAL {result['signal']} DETECTADA en {config.SYMBOL} ({TF_MAPPING.get(timeframe, str(timeframe))})")
-                        print(f"Entrada (Mercado): {result['entry']:.3f} | SL: {result['sl']:.3f} | TP (1:2): {result['tp']:.3f}")
+                        print(f"Esperando retroceso a (Limit Entry): {result['entry']:.3f} | SL: {result['sl']:.3f} | TP (CRT): {result['tp']:.3f}")
                         
-                        msg = f"🚀 *NUEVA SEÑAL {result['signal']}*\nSímbolo: {config.SYMBOL} ({TF_MAPPING.get(timeframe, str(timeframe))})\nEntrada: {result['entry']:.3f}\nSL: {result['sl']:.3f}\nTP: {result['tp']:.3f}"
+                        msg = f"🚀 *NUEVA ORDEN {result['signal']}*\nSímbolo: {config.SYMBOL} ({TF_MAPPING.get(timeframe, str(timeframe))})\nEntrada Limit: {result['entry']:.3f}\nSL: {result['sl']:.3f}\nTP CRT: {result['tp']:.3f}"
                         telegram_utils.enviar_telegram(msg)
                         
                         # Ejecutar orden a mercado
