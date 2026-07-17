@@ -15,8 +15,9 @@ DEVIATION = 20 # Desviación permitida (slippage) en puntos
 TIMEFRAMES = [mt5.TIMEFRAME_M15, mt5.TIMEFRAME_H1, mt5.TIMEFRAME_H4]
 
 # Gestión de Riesgo (Risk Management)
-RISK_REWARD_RATIO = 2.0 # Take Profit será 2 veces el tamaño del Stop Loss
+RISK_REWARD_RATIO = 2.0 # TP por defecto si no hay liquidez cercana
 MOVE_TO_BREAKEVEN_RATIO = 1.0 # Mover SL a precio de entrada cuando el precio alcance 1:1 R/R
+SL_BUFFER_PIPS = 0.5 # Distancia extra de respiro para el Stop Loss debajo de la mecha
 
 # Configuración de Estrategia SMC
 ATR_PERIOD = 14
