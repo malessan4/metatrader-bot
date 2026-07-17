@@ -18,7 +18,9 @@ TIMEFRAMES = [mt5.TIMEFRAME_M15, mt5.TIMEFRAME_H1, mt5.TIMEFRAME_H4]
 RISK_REWARD_RATIO = 2.0 # TP por defecto si no hay liquidez cercana
 MOVE_TO_BREAKEVEN_RATIO = 1.0 # Mover SL a precio de entrada cuando el precio alcance 1:1 R/R
 SL_BUFFER_PIPS = 0.5 # Distancia extra de respiro para el Stop Loss debajo de la mecha
-BREAKEVEN_PLUS_PIPS = 0.1 # Puntos extra a sumar al BreakEven (ej. para cubrir comisiones)
+BREAKEVEN_PLUS_USD = 2.0 # Dólares extra a asegurar en el BreakEven
+MIN_TP_USD = 15.0 # Mínimo beneficio en USD por operación (por Take Profit)
+MAX_TP_USD = 30.0 # Máximo beneficio en USD por operación (tope de Take Profit)
 
 # Configuración de Estrategia SMC
 ATR_PERIOD = 14

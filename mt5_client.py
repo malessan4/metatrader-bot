@@ -87,3 +87,17 @@ def get_open_positions():
     if positions is None:
         return []
     return positions
+
+def get_pending_orders():
+    """Obtiene las órdenes pendientes (ej. Limits) colocadas por el bot"""
+    orders = mt5.orders_get(magic=config.MAGIC_NUMBER)
+    if orders is None:
+        return []
+    return orders
+
+def get_contract_size(symbol):
+    """Devuelve el tamaño del contrato para cálculos matemáticos en USD"""
+    info = mt5.symbol_info(symbol)
+    if info:
+        return info.trade_contract_size
+    return 100.0 # Valor por defecto seguro para el oro

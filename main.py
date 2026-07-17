@@ -25,28 +25,35 @@ def manage_open_positions():
         sl = pos.sl
         current_price = pos.price_current
         
+        contract_size = mt5_client.get_contract_size(symbol)
+        be_offset = getattr(config, 'BREAKEVEN_PLUS_USD', 2.0) / (config.LOT_SIZE * contract_size)
+        
         # Calcular si ha alcanzado el 1:1 (50% del TP total de 1:2)
         if order_type == mt5.ORDER_TYPE_BUY:
             risk = price_open - sl
             if risk <= 0: continue # Evitar divisiones o lógicas erróneas si no hay SL
             
             target_1_1 = price_open + risk
-            # Si superamos el 1:1 y el SL aún no está en breakeven
-            if current_price >= target_1_1 and sl < price_open:
-                print(f"[{symbol}] Moviendo SL a Breakeven para orden BUY {ticket}")
-                mt5_client.modify_position_sl(ticket, symbol, price_open)
-                telegram_utils.enviar_telegram(f"🛡 *Breakeven Activado*\nSímbolo: {symbol}\nOrden: BUY {ticket}\nPrecio de entrada asegurado.")
+            be_price = price_open + be_offset
+            
+            # Si superamos el 1:1 y el SL aún no está en breakeven + USD
+            if current_price >= target_1_1 and sl < be_price:
+                print(f"[{symbol}] Moviendo SL a Breakeven (+USD) para orden BUY {ticket}")
+                mt5_client.modify_position_sl(ticket, symbol, be_price)
+                telegram_utils.enviar_telegram(f"🛡 *Breakeven Activado*\nSímbolo: {symbol}\nOrden: BUY {ticket}\nGanancia de {config.BREAKEVEN_PLUS_USD} USD asegurada.")
                 
         elif order_type == mt5.ORDER_TYPE_SELL:
             risk = sl - price_open
             if risk <= 0: continue
             
             target_1_1 = price_open - risk
+            be_price = price_open - be_offset
+            
             # Si superamos el 1:1 (el precio bajó lo suficiente)
-            if current_price <= target_1_1 and sl > price_open:
-                print(f"[{symbol}] Moviendo SL a Breakeven para orden SELL {ticket}")
-                mt5_client.modify_position_sl(ticket, symbol, price_open)
-                telegram_utils.enviar_telegram(f"🛡 *Breakeven Activado*\nSímbolo: {symbol}\nOrden: SELL {ticket}\nPrecio de entrada asegurado.")
+            if current_price <= target_1_1 and sl > be_price:
+                print(f"[{symbol}] Moviendo SL a Breakeven (+USD) para orden SELL {ticket}")
+                mt5_client.modify_position_sl(ticket, symbol, be_price)
+                telegram_utils.enviar_telegram(f"🛡 *Breakeven Activado*\nSímbolo: {symbol}\nOrden: SELL {ticket}\nGanancia de {config.BREAKEVEN_PLUS_USD} USD asegurada.")
 
 def main():
     if not mt5_client.initialize():
@@ -72,11 +79,14 @@ def main():
                 
                 # Si encontramos una señal FVG
                 if result['signal']:
-                    # Verificamos si ya tenemos posiciones abiertas para evitar abrir muchas juntas
+                    # Verificamos si ya tenemos posiciones abiertas o limit orders pendientes para evitar duplicados
                     positions = mt5_client.get_open_positions()
-                    already_open = any(p.symbol == config.SYMBOL for p in positions)
+                    pending = mt5_client.get_pending_orders()
                     
-                    if not already_open:
+                    already_open = any(p.symbol == config.SYMBOL for p in positions)
+                    already_pending = any(o.symbol == config.SYMBOL for o in pending)
+                    
+                    if not already_open and not already_pending:
                         print(f"\n[!] SEÑAL {result['signal']} DETECTADA en {config.SYMBOL} ({TF_MAPPING.get(timeframe, str(timeframe))})")
                         print(f"Esperando retroceso a (Limit Entry): {result['entry']:.3f} | SL: {result['sl']:.3f} | TP (CRT): {result['tp']:.3f}")
                         

@@ -2,6 +2,7 @@ import pandas as pd
 import numpy as np
 import MetaTrader5 as mt5
 import config
+import mt5_client
 
 def calculate_atr(df, period=14):
     high_low = df['High'] - df['Low']
@@ -92,6 +93,27 @@ def analyze_smc(df_m15, df_h4=None):
                     recent_high = df['High'].iloc[last_idx-10:last_idx+1].max()
                     tp = recent_high if recent_high > entry + (entry - sl) else entry + (entry - sl) * 2.0
                     break
+
+    # 3. Aplicar restricciones de Take Profit (Min y Max en USD)
+    if signal:
+        contract_size = mt5_client.get_contract_size(config.SYMBOL)
+        lot_size = config.LOT_SIZE
+        # Distancia en precio requerida para cumplir el objetivo en USD
+        min_price_dist = getattr(config, 'MIN_TP_USD', 15.0) / (lot_size * contract_size)
+        max_price_dist = getattr(config, 'MAX_TP_USD', 30.0) / (lot_size * contract_size)
+        
+        if signal == "BUY_LIMIT":
+            current_dist = tp - entry
+            if current_dist < min_price_dist:
+                tp = entry + min_price_dist
+            elif current_dist > max_price_dist:
+                tp = entry + max_price_dist
+        elif signal == "SELL_LIMIT":
+            current_dist = entry - tp
+            if current_dist < min_price_dist:
+                tp = entry - min_price_dist
+            elif current_dist > max_price_dist:
+                tp = entry - max_price_dist
 
     return {
         "signal": signal,
