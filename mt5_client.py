@@ -31,17 +31,21 @@ def send_market_order(symbol, order_type, lot, price, sl, tp):
     
     if order_type == "BUY":
         mt5_order_type = mt5.ORDER_TYPE_BUY
+        action = mt5.TRADE_ACTION_DEAL
     elif order_type == "SELL":
         mt5_order_type = mt5.ORDER_TYPE_SELL
+        action = mt5.TRADE_ACTION_DEAL
     elif order_type == "BUY_LIMIT":
         mt5_order_type = mt5.ORDER_TYPE_BUY_LIMIT
+        action = mt5.TRADE_ACTION_PENDING
     elif order_type == "SELL_LIMIT":
         mt5_order_type = mt5.ORDER_TYPE_SELL_LIMIT
+        action = mt5.TRADE_ACTION_PENDING
     else:
         return None
         
     request = {
-        "action": mt5.TRADE_ACTION_DEAL,
+        "action": action,
         "symbol": symbol,
         "volume": float(lot),
         "type": mt5_order_type,
@@ -52,9 +56,12 @@ def send_market_order(symbol, order_type, lot, price, sl, tp):
         "magic": config.MAGIC_NUMBER,
         "comment": "SMC Bot",
         "type_time": mt5.ORDER_TIME_GTC,
-        "type_filling": mt5.ORDER_FILLING_IOC, # Algunos brokers requieren FOK, ajustar de ser necesario
     }
     
+    # Solo las órdenes a mercado (DEAL) llevan instrucción de llenado inmediato en algunos brokers
+    if action == mt5.TRADE_ACTION_DEAL:
+        request["type_filling"] = mt5.ORDER_FILLING_IOC
+        
     result = mt5.order_send(request)
     return result
 
