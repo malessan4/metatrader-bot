@@ -33,6 +33,10 @@ def send_market_order(symbol, order_type, lot, price, sl, tp):
         mt5_order_type = mt5.ORDER_TYPE_BUY
     elif order_type == "SELL":
         mt5_order_type = mt5.ORDER_TYPE_SELL
+    elif order_type == "BUY_LIMIT":
+        mt5_order_type = mt5.ORDER_TYPE_BUY_LIMIT
+    elif order_type == "SELL_LIMIT":
+        mt5_order_type = mt5.ORDER_TYPE_SELL_LIMIT
     else:
         return None
         
