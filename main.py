@@ -3,6 +3,13 @@ import MetaTrader5 as mt5
 import config
 import mt5_client
 import strategy
+import telegram_utils
+
+TF_MAPPING = {
+    mt5.TIMEFRAME_M15: "M15",
+    mt5.TIMEFRAME_H1: "H1",
+    mt5.TIMEFRAME_H4: "H4"
+}
 
 def manage_open_positions():
     """
@@ -28,6 +35,7 @@ def manage_open_positions():
             if current_price >= target_1_1 and sl < price_open:
                 print(f"[{symbol}] Moviendo SL a Breakeven para orden BUY {ticket}")
                 mt5_client.modify_position_sl(ticket, symbol, price_open)
+                telegram_utils.enviar_telegram(f"🛡 *Breakeven Activado*\nSímbolo: {symbol}\nOrden: BUY {ticket}\nPrecio de entrada asegurado.")
                 
         elif order_type == mt5.ORDER_TYPE_SELL:
             risk = sl - price_open
@@ -38,13 +46,14 @@ def manage_open_positions():
             if current_price <= target_1_1 and sl > price_open:
                 print(f"[{symbol}] Moviendo SL a Breakeven para orden SELL {ticket}")
                 mt5_client.modify_position_sl(ticket, symbol, price_open)
+                telegram_utils.enviar_telegram(f"🛡 *Breakeven Activado*\nSímbolo: {symbol}\nOrden: SELL {ticket}\nPrecio de entrada asegurado.")
 
 def main():
     if not mt5_client.initialize():
         return
         
     print("Iniciando Bot SMC (FVG/CRT)...")
-    print(f"Monitoreando {config.SYMBOL} en temporalidades: {[mt5.timeframe_name(t) for t in config.TIMEFRAMES]}")
+    print(f"Monitoreando {config.SYMBOL} en temporalidades: {[TF_MAPPING.get(t, str(t)) for t in config.TIMEFRAMES]}")
     
     try:
         while True:
@@ -66,13 +75,18 @@ def main():
                     already_open = any(p.symbol == config.SYMBOL for p in positions)
                     
                     if not already_open:
-                        print(f"\n[!] SEÑAL {result['signal']} DETECTADA en {config.SYMBOL} ({mt5.timeframe_name(timeframe)})")
+                        print(f"\n[!] SEÑAL {result['signal']} DETECTADA en {config.SYMBOL} ({TF_MAPPING.get(timeframe, str(timeframe))})")
                         print(f"Entrada (Mercado): {result['entry']:.3f} | SL: {result['sl']:.3f} | TP (1:2): {result['tp']:.3f}")
                         
+                        msg = f"🚀 *NUEVA SEÑAL {result['signal']}*\nSímbolo: {config.SYMBOL} ({TF_MAPPING.get(timeframe, str(timeframe))})\nEntrada: {result['entry']:.3f}\nSL: {result['sl']:.3f}\nTP: {result['tp']:.3f}"
+                        telegram_utils.enviar_telegram(msg)
+                        
                         # Ejecutar orden a mercado
-                        # mt5_client.send_market_order(config.SYMBOL, result['signal'], config.LOT_SIZE, result['entry'], result['sl'], result['tp'])
-                        print(">> ATENCIÓN: El código de ejecución de orden está comentado por seguridad.")
-                        print(">> Quita los comentarios de 'send_market_order' en main.py cuando pruebes en Demo.")
+                        order_res = mt5_client.send_market_order(config.SYMBOL, result['signal'], config.LOT_SIZE, result['entry'], result['sl'], result['tp'])
+                        if order_res and order_res.retcode == mt5.TRADE_RETCODE_DONE:
+                            print(f">> Orden ejecutada con éxito. Ticket: {order_res.order}")
+                        else:
+                            print(f">> Error al ejecutar orden: {order_res}")
                         
                         # Pausa para no saturar si acaba de mandar una señal
                         time.sleep(10)
