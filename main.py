@@ -79,12 +79,18 @@ def main():
                 
                 # Si encontramos una señal FVG
                 if result['signal']:
-                    # Verificamos si ya tenemos posiciones abiertas o limit orders pendientes para evitar duplicados
+                    # Verificamos posiciones abiertas y órdenes pendientes
                     positions = mt5_client.get_open_positions()
                     pending = mt5_client.get_pending_orders()
                     
-                    already_open = any(p.symbol == config.SYMBOL for p in positions)
-                    already_pending = any(o.symbol == config.SYMBOL for o in pending)
+                    symbol_positions = [p for p in positions if p.symbol == config.SYMBOL]
+                    symbol_pending = [o for o in pending if o.symbol == config.SYMBOL]
+                    
+                    already_open = len(symbol_positions) > 0
+                    
+                    # Verificamos temporizador y límite de órdenes
+                    current_time = time.time()
+                                break
                     
                     if not already_open and not already_pending:
                         print(f"\n[!] SEÑAL {result['signal']} DETECTADA en {config.SYMBOL} ({TF_MAPPING.get(timeframe, str(timeframe))})")

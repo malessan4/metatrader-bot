@@ -21,6 +21,9 @@ SL_BUFFER_PIPS = 0.5 # Distancia extra de respiro para el Stop Loss debajo de la
 BREAKEVEN_PLUS_USD = 2.0 # Dólares extra a asegurar en el BreakEven
 MIN_TP_USD = 15.0 # Mínimo beneficio en USD por operación (por Take Profit)
 MAX_TP_USD = 30.0 # Máximo beneficio en USD por operación (tope de Take Profit)
+MAX_PENDING_ORDERS = 3 # Límite máximo de órdenes pendientes para evitar sobre-exposición
+PENDING_ORDER_TIMEOUT_MINUTES = 30 # Tiempo de espera mínimo antes de colocar otra orden pendiente
+ORDER_COOLDOWN_MINUTES = 30.0 # Minutos de espera antes de permitir otra orden Limit duplicada
 
 # Configuración de Estrategia SMC
 ATR_PERIOD = 14
