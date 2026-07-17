@@ -62,11 +62,13 @@ def main():
             
             # 2. Analizar el mercado en cada temporalidad configurada
             for timeframe in config.TIMEFRAMES:
-                df = mt5_client.get_data(config.SYMBOL, timeframe, n_candles=100)
-                if df is None or df.empty:
+                # Obtenemos los datos de la temporalidad principal (ej. M15) y del filtro HTF (H1)
+                df_m15 = mt5_client.get_data(config.SYMBOL, timeframe, n_candles=100)
+                df_htf = mt5_client.get_data(config.SYMBOL, mt5.TIMEFRAME_H1, n_candles=30)
+                if df_m15 is None or df_m15.empty:
                     continue
                     
-                result = strategy.analyze_smc(df)
+                result = strategy.analyze_smc(df_m15, df_htf)
                 
                 # Si encontramos una señal FVG
                 if result['signal']:
