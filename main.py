@@ -90,9 +90,11 @@ def main():
                     
                     # Verificamos temporizador y límite de órdenes
                     current_time = time.time()
-                                break
+                    timeout_secs = getattr(config, 'PENDING_ORDER_TIMEOUT_MINUTES', 30) * 60
+                    recent_pending = any((current_time - o.time_setup) < timeout_secs for o in symbol_pending)
+                    max_pending_reached = len(symbol_pending) >= getattr(config, 'MAX_PENDING_ORDERS', 3)
                     
-                    if not already_open and not already_pending:
+                    if not already_open and not recent_pending and not max_pending_reached:
                         print(f"\n[!] SEÑAL {result['signal']} DETECTADA en {config.SYMBOL} ({TF_MAPPING.get(timeframe, str(timeframe))})")
                         print(f"Esperando retroceso a (Limit Entry): {result['entry']:.3f} | SL: {result['sl']:.3f} | TP (CRT): {result['tp']:.3f}")
                         
