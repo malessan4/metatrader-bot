@@ -44,14 +44,19 @@ def send_market_order(symbol, order_type, lot, price, sl, tp):
     else:
         return None
         
+    info = mt5.symbol_info(symbol)
+    if not info:
+        return None
+    digits = info.digits
+
     request = {
         "action": action,
         "symbol": symbol,
         "volume": float(lot),
         "type": mt5_order_type,
-        "price": float(price),
-        "sl": float(sl),
-        "tp": float(tp),
+        "price": round(float(price), digits),
+        "sl": round(float(sl), digits),
+        "tp": round(float(tp), digits),
         "deviation": config.DEVIATION,
         "magic": config.MAGIC_NUMBER,
         "comment": "SMC Bot",
