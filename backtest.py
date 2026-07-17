@@ -16,9 +16,9 @@ def simular_backtest():
         
     symbol = config.SYMBOL
     timeframe_m15 = mt5.TIMEFRAME_M15
-    timeframe_h4 = mt5.TIMEFRAME_H4
-    n_velas = 10000
-    balance_inicial = 1000.0
+    timeframe_h4 = mt5.TIMEFRAME_H1 # Cambiado a H1 para que el sesgo cambie más rápido y de más señales
+    n_velas = 2000 # ~1 Mes de velas M15
+    balance_inicial = 200.0
     lote = config.LOT_SIZE
     
     print(f"📥 Descargando {n_velas} velas M15 y H4 de {symbol}...")
@@ -78,20 +78,55 @@ def simular_backtest():
             elif last_h4['Close'] < last_h4['Open'] and last_h4['Close'] < last_h4['EMA20']:
                 crt_bias = -1
                 
-        # Verificar FVG
-        if row['FVG_Bull'] and crt_bias >= 0:
-            signal = "BUY_LIMIT"
-            entry = df_m15.iloc[i-2]['High']
-            sl = df_m15.iloc[i-2]['Low'] - config.SL_BUFFER_PIPS
-            recent_high = df_m15['High'].iloc[i-10:i+1].max()
-            tp = recent_high if recent_high > entry + (entry - sl) else entry + (entry - sl) * 2.0
-            
-        elif row['FVG_Bear'] and crt_bias <= 0:
-            signal = "SELL_LIMIT"
-            entry = df_m15.iloc[i-2]['Low']
-            sl = df_m15.iloc[i-2]['High'] + config.SL_BUFFER_PIPS
-            recent_low = df_m15['Low'].iloc[i-10:i+1].min()
-            tp = recent_low if recent_low < entry - (sl - entry) else entry - (sl - entry) * 2.0
+        # Chequeo de Killzone (Filtro Horario)
+        hora_vela = row['Time'].hour
+        en_killzone = getattr(config, 'KILLZONE_START_HOUR', 0) <= hora_vela < getattr(config, 'KILLZONE_END_HOUR', 24)
+        
+        # Verificar FVG Normal SOLO si estamos en Killzone
+        if en_killzone:
+            if row['FVG_Bull'] and crt_bias >= 0:
+                signal = "BUY_LIMIT"
+                entry = df_m15.iloc[i-2]['High']
+                sl = df_m15.iloc[i-2]['Low'] - config.SL_BUFFER_PIPS
+                recent_high = df_m15['High'].iloc[i-10:i+1].max()
+                tp = recent_high if recent_high > entry + (entry - sl) else entry + (entry - sl) * 2.0
+                
+            elif row['FVG_Bear'] and crt_bias <= 0:
+                signal = "SELL_LIMIT"
+                entry = df_m15.iloc[i-2]['Low']
+                sl = df_m15.iloc[i-2]['High'] + config.SL_BUFFER_PIPS
+                recent_low = df_m15['Low'].iloc[i-10:i+1].min()
+                tp = recent_low if recent_low < entry - (sl - entry) else entry - (sl - entry) * 2.0
+    
+            # Verificar IFVG (Inversion FVG) si no hubo FVG normal y estamos en Killzone
+            if not signal:
+                cierre_actual = row['Close']
+                for i_back in range(3, 15):
+                    idx_analizar = i - i_back
+                    if idx_analizar < 0: break
+                    
+                    vela_3 = df_m15.iloc[idx_analizar]
+                    vela_1 = df_m15.iloc[idx_analizar - 2]
+                    
+                    # IFVG Bajista (Rompe FVG Alcista)
+                    if vela_3['FVG_Bull']:
+                        if cierre_actual < vela_1['Low'] and crt_bias <= 0:
+                            signal = "SELL_LIMIT"
+                            entry = vela_1['Low']
+                            sl = vela_1['High'] + config.SL_BUFFER_PIPS
+                            recent_low = df_m15['Low'].iloc[i-10:i+1].min()
+                            tp = recent_low if recent_low < entry - (sl - entry) else entry - (sl - entry) * 2.0
+                            break
+                            
+                    # IFVG Alcista (Rompe FVG Bajista)
+                    elif vela_3['FVG_Bear']:
+                        if cierre_actual > vela_1['High'] and crt_bias >= 0:
+                            signal = "BUY_LIMIT"
+                            entry = vela_1['High']
+                            sl = vela_1['Low'] - config.SL_BUFFER_PIPS
+                            recent_high = df_m15['High'].iloc[i-10:i+1].max()
+                            tp = recent_high if recent_high > entry + (entry - sl) else entry + (entry - sl) * 2.0
+                            break
             
         if signal:
             trade_activo = False
@@ -141,34 +176,70 @@ def simular_backtest():
                 # FASE 2: Trade Activo, manejar TP / SL / BE
                 if trade_activo:
                     if signal == "BUY_LIMIT":
+                        # Chequeo si el precio tocó BreakEven Target (1:1)
                         if not be_activado and high >= target_be:
-                            sl = entry
+                            sl = entry + getattr(config, 'BREAKEVEN_PLUS_PIPS', 0.1) # BE +1
                             be_activado = True
+                            # TOMA DE PARCIALES: Cerramos el 50% de la operación con ganancia de 1:1
+                            balance += (risk * (lote / 2) * contract_size)
+                            
+                        # Chequeo si el precio nos sacó por SL (o BE si ya lo habíamos movido)
                         if low <= sl:
-                            if be_activado: be_cierres += 1
-                            else: perdidas += 1; balance -= (risk * lote * contract_size)
-                            break
+                            if be_activado:
+                                be_cierres += 1
+                                # Sumamos la ganancia minúscula del BE+1 para la mitad restante
+                                balance += ((sl - entry) * (lote / 2) * contract_size)
+                            else:
+                                perdidas += 1
+                                balance -= (risk * lote * contract_size)
+                            break # Termina el trade
+                            
+                        # Chequeo si el precio tocó el TP
                         if high >= tp:
                             ganadas += 1
-                            balance += ((tp - entry) * lote * contract_size)
-                            break
+                            if be_activado:
+                                # Si tomamos parciales, la mitad restante llega al TP
+                                balance += ((tp - entry) * (lote / 2) * contract_size)
+                            else:
+                                balance += ((tp - entry) * lote * contract_size)
+                            break # Termina el trade
+                            
                     else: # SELL_LIMIT
                         if not be_activado and low <= target_be:
-                            sl = entry
+                            sl = entry - getattr(config, 'BREAKEVEN_PLUS_PIPS', 0.1) # BE +1
                             be_activado = True
+                            # TOMA DE PARCIALES
+                            balance += (risk * (lote / 2) * contract_size)
+                            
                         if high >= sl:
-                            if be_activado: be_cierres += 1
-                            else: perdidas += 1; balance -= (risk * lote * contract_size)
+                            if be_activado:
+                                be_cierres += 1
+                                balance += ((entry - sl) * (lote / 2) * contract_size)
+                            else:
+                                perdidas += 1
+                                balance -= (risk * lote * contract_size)
                             break
+                            
                         if low <= tp:
                             ganadas += 1
-                            balance += ((entry - tp) * lote * contract_size)
+                            if be_activado:
+                                balance += ((entry - tp) * (lote / 2) * contract_size)
+                            else:
+                                balance += ((entry - tp) * lote * contract_size)
                             break
 
     mt5_client.shutdown()
     
+    fecha_inicio = df_m15.iloc[0]['Time']
+    fecha_fin = df_m15.iloc[-1]['Time']
+    dias_totales = (fecha_fin - fecha_inicio).days
+    meses_totales = dias_totales / 30.0
+    
+    # 4. Reporte Final
     print("\n\n" + "="*50)
-    print(f"🏁 RESULTADO BACKTEST CRT + FVG LIMIT (10,000 velas)")
+    print(f"🏁 RESULTADO BACKTEST CRT + FVG LIMIT")
+    print(f"🗓️ Período: {fecha_inicio.strftime('%Y-%m-%d')} a {fecha_fin.strftime('%Y-%m-%d')}")
+    print(f"⏳ Tiempo Transcurrido: {dias_totales} días (aprox {meses_totales:.1f} meses)")
     print("="*50)
     print(f"🔵 Ganadas: {ganadas} | 🔴 Perdidas: {perdidas} | 🛡️ BE: {be_cierres} | 👻 Missed Limits: {limit_no_activadas}")
     
@@ -176,10 +247,11 @@ def simular_backtest():
     if total > 0:
         wr = (ganadas / (ganadas + perdidas)) * 100 if (ganadas + perdidas) > 0 else 0
         print(f"🎯 Win Rate Efectivo: {wr:.2f}%")
+        print(f"📊 Promedio de Operaciones: {(total / dias_totales):.1f} por día")
         print(f"💰 Balance Final: ${balance:.2f} USD")
         print(f"📈 Beneficio Neto: ${(balance - balance_inicial):.2f} USD")
     else:
-        print("❌ El bot no encontró entradas válidas con la regla H4.")
+        print("❌ El bot no encontró entradas válidas con la regla H1.")
     print("="*50)
 
 if __name__ == "__main__":
